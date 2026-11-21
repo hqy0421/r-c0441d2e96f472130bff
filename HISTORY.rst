@@ -1,6 +1,20 @@
 Release History
 ===============
 
+Unreleased
+----------
+
+* Add ``Worksheet.get_typed_records``: read several finite A1 ranges in a
+  single request and return typed cell records (``gspread.typed.TypedCell``)
+  decoding both user-entered values and computed results. Blank cells,
+  explicit empty strings, formulas evaluating to an empty string and formula
+  errors are distinguished; errors keep their type, formula and source
+  address. Columns declared as dates/datetimes are decoded from Sheets
+  serial values, keeping the spreadsheet timezone and original serial for
+  datetimes. Overlapping ranges are de-duplicated, conflicting values raise
+  ``gspread.exceptions.ValueConflictError`` and cells omitted by the API are
+  filled in as blank records.
+
 6.2.1 (2025-05-14)
 ------------------
 

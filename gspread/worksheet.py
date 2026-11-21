@@ -32,6 +32,12 @@ from typing import (
 from .cell import Cell
 from .exceptions import GSpreadException
 from .http_client import DefaultSerializerType, HTTPClient, ParamsType
+from .typed import (
+    TypedCell,
+    extract_typed_cells,
+    normalize_column_indexes,
+    parse_finite_a1_range,
+)
 from .urls import WORKSHEET_DRIVE_URL
 from .utils import (
     DateTimeOption,
@@ -1104,6 +1110,108 @@ class Worksheet:
         )
 
         return [ValueRange.from_json(x) for x in response["valueRanges"]]
+
+    def get_typed_records(
+        self,
+        ranges: Union[str, Iterable[str]],
+        date_columns: Optional[Iterable[Union[str, int]]] = None,
+        datetime_columns: Optional[Iterable[Union[str, int]]] = None,
+    ) -> List[TypedCell]:
+        """Reads several finite A1 ranges in a single API request and returns
+        typed cell records, decoding both the user-entered values and the
+        computed results — not the formatted (displayed) values.
+
+        Unlike :meth:`get`/:meth:`batch_get`, which flatten cells to their
+        displayed values, this method uses the grid data returned by
+        ``spreadsheets.get`` and keeps, for each physical cell, both its
+        input value (the literal or the formula) and its computed result,
+        aligned on the absolute start row/column returned by the API.
+
+        The returned records distinguish values that look identical on
+        screen (see :class:`gspread.typed.CellKind`):
+
+        * genuinely blank cells (``BLANK``, value ``None``),
+        * explicit empty strings (``EMPTY_STRING``, value ``""``),
+        * formulas evaluating to an empty string (``FORMULA_EMPTY_STRING``),
+        * formula errors (``ERROR``) — the record keeps the error type, the
+          formula and the source cell address.
+
+        Falsy literal values are kept as-is: the number ``0``, the boolean
+        ``False`` and text like ``"001"`` are returned untouched.
+
+        :param list ranges: Cell ranges in *finite* (fully bounded) A1
+            notation, e.g. ``"A1:B2"`` or a single cell ``"A1"``. Unbounded
+            ranges like ``"A:B"`` or ``"A1:B"`` are rejected with
+            :exc:`gspread.exceptions.InvalidInputValue`. A single range
+            string is accepted as well.
+
+            Overlapping ranges are allowed: each physical cell is returned
+            only once, and conflicting values for the same cell raise
+            :exc:`gspread.exceptions.ValueConflictError`. Empty cells
+            omitted by the API inside the requested ranges are filled in as
+            blank records.
+
+        :param date_columns: (optional) Columns declared as dates, as an
+            iterable of column letters (``"A"``) and/or 1-based indexes
+            (``1``). Numbers in these columns are decoded from Sheets
+            serial values to :class:`datetime.date`.
+        :type date_columns: iterable of str/int
+
+        :param datetime_columns: (optional) Columns declared as datetimes.
+            Numbers in these columns are decoded from Sheets serial values
+            to naive :class:`datetime.datetime` in the spreadsheet local
+            time; the record also keeps the spreadsheet timezone and the
+            original serial value.
+        :type datetime_columns: iterable of str/int
+
+        :returns: the typed records, sorted by row then column.
+        :rtype: list of :class:`gspread.typed.TypedCell`
+
+        .. versionadded:: 6.3
+
+        Examples::
+
+            # Read two ranges at once, column C holds datetimes
+            records = worksheet.get_typed_records(
+                ["A1:C10", "E5:F8"],
+                datetime_columns=["C"],
+            )
+            for cell in records:
+                if cell.kind is CellKind.ERROR:
+                    print(cell.address, cell.error_type, cell.formula)
+        """
+        if isinstance(ranges, str):
+            ranges = [ranges]
+        ranges = list(ranges)
+        if not ranges:
+            return []
+
+        rectangles = [parse_finite_a1_range(r) for r in ranges]
+
+        params: ParamsType = {
+            "includeGridData": "true",
+            "ranges": [absolute_range_name(self.title, r) for r in ranges],
+            "fields": ",".join(
+                [
+                    "properties.timeZone",
+                    "sheets.properties.sheetId",
+                    "sheets.data.startRow",
+                    "sheets.data.startColumn",
+                    "sheets.data.rowData.values.userEnteredValue",
+                    "sheets.data.rowData.values.effectiveValue",
+                ]
+            ),
+        }
+
+        response = self.client.spreadsheets_get(self.spreadsheet_id, params=params)
+
+        return extract_typed_cells(
+            response,
+            sheet_id=self.id,
+            rectangles=rectangles,
+            date_columns=normalize_column_indexes(date_columns),
+            datetime_columns=normalize_column_indexes(datetime_columns),
+        )
 
     def update(
         self,

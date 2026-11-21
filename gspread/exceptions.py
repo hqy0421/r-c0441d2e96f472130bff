@@ -35,6 +35,10 @@ class InvalidInputValue(GSpreadException):
     """The provided values is incorrect."""
 
 
+class ValueConflictError(GSpreadException):
+    """Overlapping ranges returned conflicting values for the same cell."""
+
+
 class APIError(GSpreadException):
     """Errors coming from the API itself,
     such as when we attempt to retrieve things that don't exist."""

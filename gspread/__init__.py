@@ -19,10 +19,12 @@ from .exceptions import (
     IncorrectCellLabel,
     NoValidUrlKeyFound,
     SpreadsheetNotFound,
+    ValueConflictError,
     WorksheetNotFound,
 )
 from .http_client import BackOffHTTPClient, HTTPClient
 from .spreadsheet import Spreadsheet
+from .typed import CellKind, TypedCell
 from .worksheet import ValueRange, Worksheet
 
 from . import urls as urls
@@ -54,11 +56,16 @@ __all__ = [
     "Worksheet",
     "ValueRange",
 
+    # from .typed
+    "CellKind",
+    "TypedCell",
+
     # from .exceptions
     "GSpreadException",
     "IncorrectCellLabel",
     "NoValidUrlKeyFound",
     "SpreadsheetNotFound",
+    "ValueConflictError",
     "WorksheetNotFound",
 
     # full module imports

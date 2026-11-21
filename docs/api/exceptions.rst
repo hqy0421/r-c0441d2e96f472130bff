@@ -9,4 +9,5 @@ Exceptions
 .. autoexception:: gspread.exceptions.NoValidUrlKeyFound
 .. autoexception:: gspread.exceptions.SpreadsheetNotFound
 .. autoexception:: gspread.exceptions.UnSupportedExportFormat
+.. autoexception:: gspread.exceptions.ValueConflictError
 .. autoexception:: gspread.exceptions.WorksheetNotFound
